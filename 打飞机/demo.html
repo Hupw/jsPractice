@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Flight fight</title>
+    <style>
+        #canvas {
+            border: 1px solid black;
+        }
+    </style>
+</head>
+<body>
+<canvas width="300px" height="500px" id="canvas">canvas</canvas>
+</body>
+<script>
+    function loadImage(url){
+        img = new Image();
+        img.src = url;
+        return img;
+    }
+    function Self(x,y,width,height,speedX,speedY){
+        var canvas = document.querySelector('#canvas');
+        var o = {};
+        o.image = loadImage('img/self.png');
+        o.x = x;
+        o.y = y;
+        o.alive = true;
+        o.width = width;
+        o.height = height;
+        o.speedX = speedX;
+        o.speedY = speedY;
+        o.moveUp = function(){
+            o.y -= o.speedY;
+        };
+        o.moveDown = function(){
+            o.y += o.speedY;
+        };
+        o.moveLeft = function(){
+            o.x -= o.speedX;
+        };
+        o.moveRight = function(){
+            o.x += o.speedX;
+        };
+        o.collideBorder = function(){
+            if(o.x < 0){
+                o.x = 0;
+            }else if(o.x + o.width > canvas.width){
+                o.x = canvas.width - o.width;
+            }
+            if(o.y < 0){
+                o.y = 0;
+            }else if(o.y + o.height > canvas.height){
+                o.y = canvas.height - o.height;
+            }
+        };
+        o.collideEnemy = function(enemy){
+            if(enemy.alive){
+                if ((o.x + o.width > enemy.x && o.x < enemy.x + enemy.width) &&
+                    (o.y + o.height > enemy.y && o.y < enemy.y + enemy.height)) {
+                    o.alive = false;
+                }
+            }
+        };
+        return o;
+    }
+    function Enemy(x,y,width,height,speed){
+        var o = {
+            x: x,
+            y: y,
+            alive: true,
+            width: width,
+            height: height,
+            speed: speed,
+        };
+        o.image = loadImage('img/enemy.png');
+        o.move = function(){
+            o.y += o.speed;
+        };
+        return o;
+    }
+    function Bullet(x,y,width,height,speed){
+        var o = {};
+        o.image = loadImage('img/bullet.png');
+        o.alive = true;
+        o.width = width;
+        o.height = height;
+        o.speed = speed;
+        o.x = x;
+        o.y = y;
+        o.move = function(){
+            o.y -= speed;
+        };
+        o.overBorder = function(){
+            if(o.y < 0){
+                o.alive = false;
+            }
+        };
+        o.collideEnemy = function(enemy){
+            if(o.alive && enemy.alive){
+                if ((o.x + o.width > enemy.x && o.x < enemy.x + enemy.width) &&
+                    (o.y + o.height > enemy.y && o.y < enemy.y + enemy.height)){
+                    console.log('collide');
+                    o.alive = false;
+                    enemy.alive = false;
+                }
+            }
+        };
+        return o;
+    }
+    function Game(self,bullets){
+        var canvas = document.querySelector('#canvas');
+        var context = canvas.getContext('2d');
+        var enemies = [];
+        var o = {};
+        o.keyDown = {};
+        o.actions = {};
+        //addEventListener
+        document.addEventListener('keydown',function(event){ o.keyDown[event.key] = true; });
+        document.addEventListener('keyup',function(event){ o.keyDown[event.key] = false; });
+        o.registerAction = function(key,callback){
+            o.actions[key] = callback;
+        };
+        //produce enemy
+        setInterval(function(){
+            var x = Math.floor(Math.random()*260); //0-259
+            var speed = Math.floor(Math.random()*10+1); //1-10
+            var enemy = Enemy(x,0,30,30,speed);
+            enemies.push(enemy);
+        },1000);
+        //timer
+        var timer = setInterval(function(){
+            //bullet move
+            for(var i = 0;i < bullets.length;i++){
+                bullets[i].move();
+            }
+            //enemy move
+            for(var i = 0;i < enemies.length;i++){
+                enemies[i].move();
+            }
+            //callback
+            var keys = Object.keys(o.actions);
+            for(var i = 0;i < keys.length;i++){
+                if(o.keyDown[keys[i]]){
+                    o.actions[keys[i]]();
+                }
+            }
+            //collide
+            self.collideBorder();
+            for(var i = 0;i < enemies.length;i++){
+                if(enemies[i].alive){
+                    self.collideEnemy(enemies[i]);
+                    for (var j = 0;j < bullets.length;j++) {
+                        bullets[j].collideEnemy(enemies[i]);
+                    }
+                }
+            }
+            //success/fail?
+            if(self.alive == false){
+                alert('Fail!');
+                clearInterval(timer);
+            }
+            //draw
+            context.clearRect(0,0,canvas.width,canvas.height);
+            context.drawImage(self.image,self.x,self.y,self.width,self.height);
+            for(var i = 0;i < enemies.length;i++){
+                var enemy = enemies[i];
+                if(enemy.alive){
+                    context.drawImage(enemy.image,enemy.x,enemy.y,enemy.width,enemy.height);
+                }
+            }
+            for(var i = 0;i < bullets.length;i++){
+                var bullet = bullets[i];
+                bullet.overBorder();
+                if(bullet.alive){
+                    context.drawImage(bullet.image,bullet.x,bullet.y,bullet.width,bullet.height);
+                }
+            }
+        },1000/30);
+        return o;
+    }
+    function main(){
+        var canvas = document.querySelector('#canvas');
+        var self = Self(canvas.width/2,canvas.height-30,30,30,5,5);
+        var bullets = [];
+        var game = Game(self,bullets);
+        game.registerAction('a',function(){
+            self.moveLeft();
+        });
+        game.registerAction('d',function(){
+            self.moveRight();
+        });
+        game.registerAction('w',function(){
+            self.moveUp();
+        });
+        game.registerAction('s',function(){
+            self.moveDown();
+        });
+        game.registerAction(' ',function(){
+            var bullet = Bullet(self.x+self.width/2-5/2,self.y,5,5,20);
+            bullets.push(bullet);
+        });
+    }
+    main();
+</script>
+</html>
